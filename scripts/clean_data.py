@@ -14,44 +14,69 @@ def clean_temperature():
 
     df = pd.read_csv(raw_path)
     
-    # Debug: print columns for troubleshooting
-    print(f"Temperature CSV columns: {list(df.columns)}")
+    if df.empty:
+        raise ValueError("Temperature CSV is empty")
+    
+    # Debug: print original columns and first few rows
+    print(f"Temperature CSV original columns: {list(df.columns)}")
+    print(f"Temperature CSV shape: {df.shape}")
     print(f"First row: {df.iloc[0].to_dict() if len(df) > 0 else 'empty'}")
     
-    # Normalize column names to lowercase for comparison
+    # Normalize column names: strip whitespace and convert to lowercase
     df.columns = df.columns.str.strip().str.lower()
+    print(f"Temperature CSV normalized columns: {list(df.columns)}")
     
-    # Try different date column patterns
-    date_col = None
+    # Try to find date column
+    date_col_name = None
     if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"])
-        date_col = "date"
-    elif {"year", "month"}.issubset(df.columns):
+        date_col_name = "date"
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    elif "year" in df.columns and "month" in df.columns:
+        date_col_name = "date"
         df["date"] = pd.to_datetime(df.assign(day=1)[["year", "month", "day"]])
-        date_col = "date"
     elif "year" in df.columns:
         # Handle year-month strings like '1850-01' or just year
+        print(f"Trying to parse 'year' column as date...")
+        sample = df["year"].iloc[0] if len(df) > 0 else None
+        print(f"Sample year value: {sample} (type: {type(sample)})")
+        
         df["date"] = pd.to_datetime(df["year"], format="%Y-%m", errors="coerce")
+        non_na_count = df["date"].notna().sum()
+        print(f"Parsed {non_na_count}/{len(df)} rows with %Y-%m format")
+        
         if df["date"].isna().all():
             # Try just year format
+            print("Trying %Y format...")
             df["date"] = pd.to_datetime(df["year"], format="%Y", errors="coerce")
+            non_na_count = df["date"].notna().sum()
+            print(f"Parsed {non_na_count}/{len(df)} rows with %Y format")
+        
         if df["date"].isna().all():
-            raise ValueError("Temperature CSV Year values could not be parsed.")
-        date_col = "date"
+            raise ValueError("Could not parse any dates from 'year' column")
+        
+        date_col_name = "date"
     
-    if date_col is None:
-        raise ValueError(f"Temperature CSV does not contain a recognized date column. Found: {list(df.columns)}")
+    if date_col_name is None:
+        raise ValueError(f"Temperature CSV missing date column. Columns: {list(df.columns)}")
 
-    # Identify the value column (case-insensitive)
-    value_col = next(
-        (col for col in df.columns if col in ["mean", "value", "anomaly"]),
-        None,
-    )
+    # Find value column (case-insensitive)
+    value_col = None
+    for col in ["mean", "value", "anomaly", "temp", "temperature"]:
+        if col in df.columns:
+            value_col = col
+            break
+    
     if value_col is None:
-        raise ValueError(f"Temperature CSV does not contain a recognized value column. Found: {list(df.columns)}")
+        raise ValueError(f"Temperature CSV missing value column. Columns: {list(df.columns)}")
 
-    cleaned = df[["date", value_col]].rename(columns={value_col: "temperature_anomaly"})
+    # Keep only valid rows
+    cleaned = df[["date", value_col]].dropna()
+    cleaned = cleaned.rename(columns={value_col: "temperature_anomaly"})
     cleaned = cleaned.sort_values("date").reset_index(drop=True)
+    
+    if len(cleaned) == 0:
+        raise ValueError("No valid temperature records after parsing")
+    
     out_path = PROCESSED_DIR / "temperature_monthly.parquet"
     cleaned.to_parquet(out_path)
     print(f"Wrote {out_path} ({len(cleaned)} rows)")
