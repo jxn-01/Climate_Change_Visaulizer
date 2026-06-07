@@ -1,10 +1,14 @@
 import pathlib
+import sys
 import pandas as pd
 import streamlit as st
-import scripts.fetch_data as fetch_data
-import scripts.clean_data as clean_data
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import scripts.fetch_data as fetch_data
+import scripts.clean_data as clean_data
 RAW_DIR = PROJECT_ROOT / "data" / "raw"
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 PROCESSED_FILES = [
