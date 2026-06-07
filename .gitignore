@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+outputs/plots/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+node_modules/
+.DS_Store
+data/raw/
+data/processed/
