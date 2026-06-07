@@ -13,20 +13,29 @@ def clean_temperature():
         raise FileNotFoundError(f"Missing raw temperature file: {raw_path}")
 
     df = pd.read_csv(raw_path)
+    
+    # Try different date column patterns
+    date_col = None
     if "Date" in df.columns:
         df["date"] = pd.to_datetime(df["Date"])
+        date_col = "date"
     elif {"Year", "Month"}.issubset(df.columns):
-        df["date"] = pd.to_datetime(
-            df.assign(DAY=1)[["Year", "Month", "DAY"]]
-        )
-    elif "Year" in df.columns and df["Year"].dtype == object:
-        # Handle year-month strings like '1850-01'
+        df["date"] = pd.to_datetime(df.assign(DAY=1)[["Year", "Month", "DAY"]])
+        date_col = "date"
+    elif "Year" in df.columns:
+        # Handle year-month strings like '1850-01' or just year
         df["date"] = pd.to_datetime(df["Year"], format="%Y-%m", errors="coerce")
         if df["date"].isna().all():
-            raise ValueError("Temperature CSV Year values are not in an expected format.")
-    else:
+            # Try just year format
+            df["date"] = pd.to_datetime(df["Year"], format="%Y", errors="coerce")
+        if df["date"].isna().all():
+            raise ValueError("Temperature CSV Year values could not be parsed.")
+        date_col = "date"
+    
+    if date_col is None:
         raise ValueError("Temperature CSV does not contain a recognized date column.")
 
+    # Identify the value column
     value_col = next(
         (col for col in ["Mean", "mean", "Value", "value"] if col in df.columns),
         None,
