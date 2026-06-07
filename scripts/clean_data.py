@@ -19,6 +19,11 @@ def clean_temperature():
         df["date"] = pd.to_datetime(
             df.assign(DAY=1)[["Year", "Month", "DAY"]]
         )
+    elif "Year" in df.columns and df["Year"].dtype == object:
+        # Handle year-month strings like '1850-01'
+        df["date"] = pd.to_datetime(df["Year"], format="%Y-%m", errors="coerce")
+        if df["date"].isna().all():
+            raise ValueError("Temperature CSV Year values are not in an expected format.")
     else:
         raise ValueError("Temperature CSV does not contain a recognized date column.")
 
