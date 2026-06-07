@@ -14,34 +14,41 @@ def clean_temperature():
 
     df = pd.read_csv(raw_path)
     
+    # Debug: print columns for troubleshooting
+    print(f"Temperature CSV columns: {list(df.columns)}")
+    print(f"First row: {df.iloc[0].to_dict() if len(df) > 0 else 'empty'}")
+    
+    # Normalize column names to lowercase for comparison
+    df.columns = df.columns.str.strip().str.lower()
+    
     # Try different date column patterns
     date_col = None
-    if "Date" in df.columns:
-        df["date"] = pd.to_datetime(df["Date"])
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"])
         date_col = "date"
-    elif {"Year", "Month"}.issubset(df.columns):
-        df["date"] = pd.to_datetime(df.assign(DAY=1)[["Year", "Month", "DAY"]])
+    elif {"year", "month"}.issubset(df.columns):
+        df["date"] = pd.to_datetime(df.assign(day=1)[["year", "month", "day"]])
         date_col = "date"
-    elif "Year" in df.columns:
+    elif "year" in df.columns:
         # Handle year-month strings like '1850-01' or just year
-        df["date"] = pd.to_datetime(df["Year"], format="%Y-%m", errors="coerce")
+        df["date"] = pd.to_datetime(df["year"], format="%Y-%m", errors="coerce")
         if df["date"].isna().all():
             # Try just year format
-            df["date"] = pd.to_datetime(df["Year"], format="%Y", errors="coerce")
+            df["date"] = pd.to_datetime(df["year"], format="%Y", errors="coerce")
         if df["date"].isna().all():
             raise ValueError("Temperature CSV Year values could not be parsed.")
         date_col = "date"
     
     if date_col is None:
-        raise ValueError("Temperature CSV does not contain a recognized date column.")
+        raise ValueError(f"Temperature CSV does not contain a recognized date column. Found: {list(df.columns)}")
 
-    # Identify the value column
+    # Identify the value column (case-insensitive)
     value_col = next(
-        (col for col in ["Mean", "mean", "Value", "value"] if col in df.columns),
+        (col for col in df.columns if col in ["mean", "value", "anomaly"]),
         None,
     )
     if value_col is None:
-        raise ValueError("Temperature CSV does not contain a recognized value column.")
+        raise ValueError(f"Temperature CSV does not contain a recognized value column. Found: {list(df.columns)}")
 
     cleaned = df[["date", value_col]].rename(columns={value_col: "temperature_anomaly"})
     cleaned = cleaned.sort_values("date").reset_index(drop=True)
